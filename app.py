@@ -30,9 +30,9 @@ from dotenv import load_dotenv
 import dash
 from dash import dcc, html, Input, Output, callback
 import dash_bootstrap_components as dbc
-
+import pandas as pd
 from pages.load_data import get_school_index, get_academic_dropdown_years, get_financial_info_dropdown_years, \
-    get_school_dropdown_list, get_financial_analysis_dropdown_years
+    get_school_dropdown_list, get_financial_analysis_dropdown_years, get_school_corporation_list, get_public_school_list
 
 # Used to generate metric rating svg circles
 FONT_AWESOME = "https://use.fontawesome.com/releases/v5.10.2/css/all.css"
@@ -157,132 +157,56 @@ app = dash.Dash(
     }
 ],
 )
+years = get_academic_dropdown_years()
 
-# Dropdown shows single school if school login is used
-# shows all schools if admin login is used.
-# NOTE: 'application-state' is a dummy input
 @callback(
-    Output("charter-dropdown", "options"),
-    [Input("application-state", "children")]
+    Output("corporation-dropdown", "options"),
+    Input("year-dropdown", "value")
 )
-def set_dropdown_options(app_state):
-    # Get the current user id using the current_user proxy,
-    # use the ._get_current_object() method to return the
-    # underlying object (User)
-    authorized_user = current_user._get_current_object()
-
-    available_charters = get_school_dropdown_list()
+def set_corp_dropdown_options(year):
     
-    # admin user
-    if authorized_user.id == 0:
-        # use entire list
-        charters = available_charters
+    school_corporations = get_school_corporation_list(year)
 
-    else:
-        # select only the authorized school using the id field of the authorized_user
-        # object. need to subtract 1 from id to get correct school from index, because
-        # the admin login is at index 0
-        charters = available_charters.iloc[[(authorized_user.id - 1)]]
+    corp_dropdown_dict = dict(zip(school_corporations["Corporation Name"], school_corporations["Corporation ID"]))
+    corp_dropdown_list = dict(sorted(corp_dropdown_dict.items()))
+    corp_dropdown_options = [{"label": name, "value": id} for name, id in corp_dropdown_list.items()]
 
-    dropdown_dict = dict(zip(charters["SchoolName"], charters["SchoolID"]))
-    dropdown_list = dict(sorted(dropdown_dict.items()))
-    dropdown_options = [{"label": name, "value": id} for name, id in dropdown_list.items()]
+    return corp_dropdown_options
 
-    return dropdown_options
-
-# Set default charter dropdown option to the first school in the list (alphanumeric)
 @callback(
-    Output("charter-dropdown", "value"),
-    Input("charter-dropdown", "options")
+    Output("corporation-dropdown", "value"),
+    Input("corporation-dropdown", "options")
 )
-def set_dropdown_value(charter_options):
-    return charter_options[0]["value"]
-            
-# year options are the range of:
-#   max = current_academic_year
-#   min = the earliest year for which the school has adm (is open)
-#   limit = typically a limit of 5 years (currently and
-#   temporarily 4 years so that 2018 academic data is not shown)
-# NOTE: Input current-page and Output hidden are used to track the currently
-# selected url (Tab)
+def set_corp_dropdown_value(corp_options):
+    return corp_options[0]["value"]
+
 @callback(
-    Output("year-dropdown", "options"),
-    Output("year-dropdown", "value"),
-    Output('hidden', 'children'),
-    Input("charter-dropdown", "value"),
-    Input("year-dropdown", "value"),
-    Input('current-page', 'href'),
+    Output("school-dropdown", "options"),
+    Input("corporation-dropdown", "value")
 )
-def set_year_dropdown_options(school_id: str, year: str, current_page: str):
+def set_school_dropdown_options(corp):
 
-    max_dropdown_years = 5
+    public_schools = get_public_school_list(corp)
 
-    current_page = current_page.rsplit('/', 1)[-1]
+        # public_schools = pd.concat([public_schools, school_group], axis=1, join="inner")
 
-    selected_school = get_school_index(school_id)    
-    school_type = selected_school['School Type'].values[0]
+    school_dropdown_dict = dict(zip(public_schools["School Name"], public_schools["School ID"]))
+    school_dropdown_list = dict(sorted(school_dropdown_dict.items()))
+    school_dropdown_options = [{"label": name, "value": id} for name, id in school_dropdown_list.items()]
 
-    # source of available years depends on selected tab
-    if 'academic' in current_page:
-        years = get_academic_dropdown_years(school_id,school_type)
+    return school_dropdown_options
 
-    elif 'financial_analysis' in current_page:
-        years = get_financial_analysis_dropdown_years(school_id)
-
-    else:
-        years = get_financial_info_dropdown_years(school_id)
-
-#TODO: Account for situation where fin_anal year is 2022 but school actually has 2023 data - not sure way to do this
-# TODO: TBH I have no idea what the issue is here - need to revisit.
-# Currently both financial_analysis_dropdown and financial_info_dropdown are the same - they both
-# reads financial_data and returns a list of Year column names for each year for which ADM Average
-# is greater than '0'     
-
-    # set year_value and year_options
-    number_of_years_to_display = len(years) if len(years) <= max_dropdown_years else max_dropdown_years
-    dropdown_years = years[0:number_of_years_to_display]
-    first_available_year = dropdown_years[0]
-    earliest_available_year = dropdown_years[-1]
-
-    # 'year' represents the State of the year-dropdown when a school is selected.
-    # Current year_value is set to:
-    #   1) current_academic year (when app is first opened);
-    #   2) the earliest_available_year (if the selected year is earlier
-    #       than the first year of available data);
-    #   3) the first_available_year (if the selected year is later
-    #       than the first year of available data);); or
-    #   4) the selected year.
-    if year is None:
-        year_value = str(first_available_year)
-    
-    elif int(year) < int(earliest_available_year):
-        year_value = str(earliest_available_year)
-
-    elif int(year) > int(first_available_year):
-        year_value = str(first_available_year)
-
-    else:
-        year_value = str(year)
-
-    if not dropdown_years:
-        raise Exception("There is simply no way that you can be seeing this error message.")
-    
-    year_options=[
-        {"label": str(y), "value": str(y)}
-        for y in dropdown_years
-    ]
-
-    return year_options, year_value, current_page
+@callback(
+    Output("school-dropdown", "value"),
+    Input("school-dropdown", "options")
+)
+def set_corp_dropdown_value(school_options):
+    return school_options[0]["value"]
 
 # app.layout = html.Div(    # NOTE: Test to see if it impacts speed
 def layout():
     return html.Div(
-    [
-        dcc.Store(id="dash-session", storage_type="session"),
-
-        # the next two components are used by the year dropdown callback to determine the current url
-        dcc.Location(id='current-page', refresh=False),
-        html.Div(id='hidden', style={"display": "none"}),
+        [
         
         html.Div(
             [
@@ -298,39 +222,17 @@ def layout():
                             [
                                 html.Div(
                                     [
-                                        html.Label("Select School:"),
-                                    ],
-                                    className="dash_label",
-                                    id="school_dash_label",
-                                ),
-                                dcc.Dropdown(
-                                    id="charter-dropdown",
-                                    style={
-                                        "fontFamily": "Roboto, sans-serif",
-                                        'color': 'steelblue',
-                                    },
-                                    multi=False,
-                                    clearable=False,
-                                    className="school_dash_control",
-                                ),
-                                # Dummy input for dropdown
-                                html.Div(id="application-state", style={"display": "none"}),
-                            ],
-                            className="pretty_container five columns",
-                        ),
-                        html.Div(
-                            [
-                                html.Div(
-                                    [
                                         html.Label("Select Year:"),
                                     ],
                                     className="dash_label",
                                     id="year_dash_label",
                                 ),
                                 dcc.Dropdown(
-                                    id="year-dropdown",
+                                    id = "year-dropdown",
+                                    options = [{'label':x, 'value': x} for x in years],
+                                    value = years[0],
                                     style={
-                                        "fontFamily": "Roboto, sans-serif",
+                                        "fontFamily": "Jost, sans-serif",
                                         'color': 'steelblue',
                                     },
                                     multi=False,
@@ -339,7 +241,51 @@ def layout():
                                 ),
                             ],
                             className="pretty_container three columns",
+                        ),                        
+                        html.Div(
+                            [
+                                html.Div(
+                                    [
+                                        html.Label("Select School Corporation:"),
+                                    ],
+                                    className="dash_label",
+                                    id="corp_dash_label",
+                                ),
+                                dcc.Dropdown(
+                                    id="corporation-dropdown",
+                                    style={
+                                        "fontFamily": "Jost, sans-serif",
+                                        'color': 'steelblue',
+                                    },
+                                    multi = True,
+                                    clearable = True,
+                                    className="school_dash_control",
+                                ),
+                            ],
+                            className="pretty_container five columns",
                         ),
+                        html.Div(
+                            [
+                                html.Div(
+                                    [
+                                        html.Label("Select School(s):"),
+                                    ],
+                                    className="dash_label",
+                                    id="school_dash_label",
+                                ),
+                                dcc.Dropdown(
+                                    id="school-dropdown",
+                                    style={
+                                        "fontFamily": "Jost, sans-serif",
+                                        'color': 'steelblue',
+                                    },
+                                    multi = True,
+                                    clearable = True,
+                                    className="school_dash_control",
+                                ),
+                            ],
+                            className="pretty_container five columns",
+                        ),                        
                     ],
                     className="fixed-row",
                 ),

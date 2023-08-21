@@ -24,7 +24,7 @@ from .chart_helpers import no_data_fig_label, make_stacked_bar, make_growth_char
 from .calculations import round_percentages, conditional_fillna, get_excluded_years
 from .subnav import subnav_academic
 
-dash.register_page(__name__, top_nav=True, path="/academic_information", order=4)
+dash.register_page(__name__, top_nav=True, path="/academic_information", order=1)
 
 @callback(
     Output("k8-grade-table", "children"),

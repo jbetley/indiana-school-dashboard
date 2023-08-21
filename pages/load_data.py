@@ -132,26 +132,14 @@ def run_query(q, *args):
 
         return df
 
-def get_academic_dropdown_years(*args):
-    keys = ['id','type']
-    params = dict(zip(keys, args))
+def get_academic_dropdown_years():
 
-    if params['type'] == 'K8' or params['type'] == 'K12':
-
-        q = text(''' 
-            SELECT DISTINCT	Year
-            FROM academic_data_k8
-            WHERE SchoolID = :id
-        ''')
-    else:
-
-        q = text('''
-            SELECT DISTINCT	Year
-            FROM academic_data_hs
-            WHERE SchoolID = :id
-        ''')
+    q = text(''' 
+        SELECT DISTINCT	Year
+        FROM academic_data_k8
+    ''')
         
-    result = run_query(q, params)
+    result = run_query(q)
     
     years = result['Year'].tolist()
     years.sort(reverse=True)
@@ -235,6 +223,44 @@ def get_school_dropdown_list():
     with engine.connect() as conn:
         schools = pd.read_sql_query(q, conn)
 
+    schools = schools.astype(str)
+
+    return schools
+
+def get_school_corporation_list(selected_year):
+
+    params = dict(year=selected_year)
+
+    q = text('''
+        SELECT CorporationName, CorporationID
+        FROM corporation_data_k8
+        WHERE corporation_data_k8.Year = :year
+        ''')
+
+    # with engine.connect() as conn:
+    #     corps = pd.read_sql_query(q, conn)
+    corps = run_query(q, params)
+    corps = corps.astype(str)
+    corps = corps.drop_duplicates('Corporation ID')
+
+    return corps
+
+def get_public_school_list(*args):
+    keys = ['corporation']
+    params = dict(zip(keys, args))
+
+    # params = dict(corporation=corp)
+# https://stackoverflow.com/questions/73421810/python-sqlite3-how-to-getting-records-that-match-a-list-of-values-in-a-column-th
+    print(params)
+    q = text('''
+        SELECT *
+        FROM academic_data_k8
+        WHERE academic_data_k8.CorporationID = :corporation
+        ''')
+
+    # with engine.connect() as conn:
+    #     corps = pd.read_sql_query(q, conn)
+    schools = run_query(q, params)
     schools = schools.astype(str)
 
     return schools

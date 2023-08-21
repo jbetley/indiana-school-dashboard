@@ -36,170 +36,170 @@ from .string_helpers import create_school_label, identify_missing_categories, co
 from .calculate_metrics import calculate_k8_comparison_metrics
 from .subnav import subnav_academic
 
-dash.register_page(__name__, path = "/academic_analysis", order=6)
+dash.register_page(__name__, path="/", order=0, top_nav=True)
 
-# Set dropdown options for comparison schools
-@callback(
-    Output("comparison-dropdown", "options"),
-    Output("input-warning","children"),
-    Output("comparison-dropdown", "value"),
-    Input("charter-dropdown", "value"),
-    Input("year-dropdown", "value"),
-    Input("comparison-dropdown", "value"),
-)
-def set_dropdown_options(school, year, comparison_schools):
+# # Set dropdown options for comparison schools
+# @callback(
+#     Output("comparison-dropdown", "options"),
+#     Output("input-warning","children"),
+#     Output("comparison-dropdown", "value"),
+#     Input("school-dropdown", "value"),
+#     Input("year-dropdown", "value"),
+#     Input("comparison-dropdown", "value"),
+# )
+# def set_dropdown_options(school, year, comparison_schools):
 
-    string_year = "2019" if year == "2020" else year
-    numeric_year = int(string_year)
+#     string_year = "2019" if year == "2020" else year
+#     numeric_year = int(string_year)
 
-    # clear the list of comparison_schools when a new school is
-    # selected (e.g., "charter-dropdown" Input). otherwise
-    # comparison_schools will carry over from school to school
-    input_trigger = ctx.triggered_id
-    if input_trigger == "charter-dropdown":
-        comparison_schools = []
+#     # clear the list of comparison_schools when a new school is
+#     # selected (e.g., "school-dropdown" Input). otherwise
+#     # comparison_schools will carry over from school to school
+#     input_trigger = ctx.triggered_id
+#     if input_trigger == "school-dropdown":
+#         comparison_schools = []
 
-    selected_school = get_school_index(school)
-    selected_school_type = selected_school["School Type"].values[0]
+#     selected_school = get_school_index(school)
+#     selected_school_type = selected_school["School Type"].values[0]
 
-    # There is some time cost for running the dropdown selection function (typically
-    # ~0.8 - 1.2s), so we want to exit out as early as possible if we know it isn't necessary
-    # HS and AHS should never generate a list of comparable schools.
-    if (selected_school_type == "HS" or selected_school_type == "AHS"):
-        return [],[],[]
+#     # There is some time cost for running the dropdown selection function (typically
+#     # ~0.8 - 1.2s), so we want to exit out as early as possible if we know it isn't necessary
+#     # HS and AHS should never generate a list of comparable schools.
+#     if (selected_school_type == "HS" or selected_school_type == "AHS"):
+#         return [],[],[]
     
-    # Get School ID, School Name, Lat & Lon for all schools in the set for selected year
-    schools_by_distance = get_school_coordinates(numeric_year)
+#     # Get School ID, School Name, Lat & Lon for all schools in the set for selected year
+#     schools_by_distance = get_school_coordinates(numeric_year)
     
-    # Drop any school not testing at least 20 students. "SchoolTotal|ELATotalTested" is a proxy
-    # for school size here (probably only impacts ~20 schools)
-    schools_by_distance = schools_by_distance[schools_by_distance["School Total|ELA Total Tested"] >= 20] 
+#     # Drop any school not testing at least 20 students. "SchoolTotal|ELATotalTested" is a proxy
+#     # for school size here (probably only impacts ~20 schools)
+#     schools_by_distance = schools_by_distance[schools_by_distance["School Total|ELA Total Tested"] >= 20] 
 
-    # It is a year when the school didnt exist
-    if int(school) not in schools_by_distance["School ID"].values:
-        return [],[],[]
+#     # It is a year when the school didnt exist
+#     if int(school) not in schools_by_distance["School ID"].values:
+#         return [],[],[]
     
-    else:
+#     else:
 
-        # NOTE: Before we do the distance check, we reduce the size of the df by removing
-        # schools where there is no, or only a one grade overlap between the comparison schools.
-        # the variable "overlap" is one less than the the number of grades that we want as a
-        # minimum (a value of "1" means a 2 grade overlap, "2" means 3 grade overlap, etc.).
-        overlap = 1
+#         # NOTE: Before we do the distance check, we reduce the size of the df by removing
+#         # schools where there is no, or only a one grade overlap between the comparison schools.
+#         # the variable "overlap" is one less than the the number of grades that we want as a
+#         # minimum (a value of "1" means a 2 grade overlap, "2" means 3 grade overlap, etc.).
+#         overlap = 1
 
-        schools_by_distance = schools_by_distance.replace({"Low Grade" : { "PK" : 0, "KG" : 1}})
-        schools_by_distance["Low Grade"] = schools_by_distance["Low Grade"].astype(int)
-        schools_by_distance["High Grade"] = schools_by_distance["High Grade"].astype(int)
-        school_grade_span = schools_by_distance.loc[schools_by_distance["School ID"] == int(school)][["Low Grade","High Grade"]].values[0].tolist()
-        school_low = school_grade_span[0]
-        school_high = school_grade_span[1]
+#         schools_by_distance = schools_by_distance.replace({"Low Grade" : { "PK" : 0, "KG" : 1}})
+#         schools_by_distance["Low Grade"] = schools_by_distance["Low Grade"].astype(int)
+#         schools_by_distance["High Grade"] = schools_by_distance["High Grade"].astype(int)
+#         school_grade_span = schools_by_distance.loc[schools_by_distance["School ID"] == int(school)][["Low Grade","High Grade"]].values[0].tolist()
+#         school_low = school_grade_span[0]
+#         school_high = school_grade_span[1]
 
-        # In order to fit within the distance parameters, the tested school must:
-        #   a)  have a low grade that is less than or equal to the selected school and
-        #       a high grade minus the selected school's low grade that is greater than or
-        #       eqaul to the overlap; or
-        #   b) have a low grade that is greater than or equal to the selected school and
-        #       a high grade minus the tested school's low grade that is greater than or 
-        #       equal to the overlap.
-        # Examples -> assume a selected school with a gradespan of 5-8:
-        #   i) a school with grades 3-7 -   [match]: low grade is less than selected school's
-        #       low grade and high grade (7) minus selected school low grade (5) is greater (2)
-        #       than the overlap (1).
-        #   i) a school with grades 2-5 -   [No match]: low grade is less than selected school's
-        #       low grade but high grade (5) minus selected school low grade (5) is not greater (0)
-        #       than the overlap (1). In this case while there is an overlap, it is below our
-        #       threshold (1 grade).
-        #   c) a school with grades 6-12-   [match]: low grade is higher than selected school's
-        #       low grade and high grade (12) minus the tested school low grade (5) is greater
-        #       (7) than the overlap (1).
-        #   d) a school with grades 3-4     [No match]: low grade is lower than selected school's
-        #       low grade, but high grade (4) minus the selected school's low grade (5) is not greater
-        #       (-1) than the overlap (1).
+#         # In order to fit within the distance parameters, the tested school must:
+#         #   a)  have a low grade that is less than or equal to the selected school and
+#         #       a high grade minus the selected school's low grade that is greater than or
+#         #       eqaul to the overlap; or
+#         #   b) have a low grade that is greater than or equal to the selected school and
+#         #       a high grade minus the tested school's low grade that is greater than or 
+#         #       equal to the overlap.
+#         # Examples -> assume a selected school with a gradespan of 5-8:
+#         #   i) a school with grades 3-7 -   [match]: low grade is less than selected school's
+#         #       low grade and high grade (7) minus selected school low grade (5) is greater (2)
+#         #       than the overlap (1).
+#         #   i) a school with grades 2-5 -   [No match]: low grade is less than selected school's
+#         #       low grade but high grade (5) minus selected school low grade (5) is not greater (0)
+#         #       than the overlap (1). In this case while there is an overlap, it is below our
+#         #       threshold (1 grade).
+#         #   c) a school with grades 6-12-   [match]: low grade is higher than selected school's
+#         #       low grade and high grade (12) minus the tested school low grade (5) is greater
+#         #       (7) than the overlap (1).
+#         #   d) a school with grades 3-4     [No match]: low grade is lower than selected school's
+#         #       low grade, but high grade (4) minus the selected school's low grade (5) is not greater
+#         #       (-1) than the overlap (1).
 
-        schools_by_distance = schools_by_distance.loc[(
-                (schools_by_distance["Low Grade"] <= school_low) & \
-                (schools_by_distance["High Grade"] - school_low >= overlap)
-            ) | \
-            (
-                (schools_by_distance["Low Grade"] >= school_low) & \
-                (school_high - schools_by_distance["Low Grade"]  >= overlap)
-            ), :]
+#         schools_by_distance = schools_by_distance.loc[(
+#                 (schools_by_distance["Low Grade"] <= school_low) & \
+#                 (schools_by_distance["High Grade"] - school_low >= overlap)
+#             ) | \
+#             (
+#                 (schools_by_distance["Low Grade"] >= school_low) & \
+#                 (school_high - schools_by_distance["Low Grade"]  >= overlap)
+#             ), :]
         
-        schools_by_distance = schools_by_distance.reset_index(drop = True)
-        all_schools = schools_by_distance.copy()
+#         schools_by_distance = schools_by_distance.reset_index(drop = True)
+#         all_schools = schools_by_distance.copy()
 
-        school_idx = schools_by_distance[schools_by_distance["School ID"] == int(school)].index
+#         school_idx = schools_by_distance[schools_by_distance["School ID"] == int(school)].index
 
-        # NOTE: This should never ever happen because we"ve already determined that the school exists in
-        # the check above. However, it did happen once, somehow, so we leave this in here just in case.
-        if school_idx.size == 0:
-            return [],[],[]
+#         # NOTE: This should never ever happen because we"ve already determined that the school exists in
+#         # the check above. However, it did happen once, somehow, so we leave this in here just in case.
+#         if school_idx.size == 0:
+#             return [],[],[]
         
-        # kdtree spatial tree function returns two np arrays: an array of indexes and an array of distances
-        index_array, dist_array = find_nearest(school_idx,schools_by_distance)
+#         # kdtree spatial tree function returns two np arrays: an array of indexes and an array of distances
+#         index_array, dist_array = find_nearest(school_idx,schools_by_distance)
 
-        index_list = index_array[0].tolist()
-        distance_list = dist_array[0].tolist()
+#         index_list = index_array[0].tolist()
+#         distance_list = dist_array[0].tolist()
 
-        # Match School ID with indexes
-        closest_schools = pd.DataFrame()
-        closest_schools["School ID"] = schools_by_distance[schools_by_distance.index.isin(index_list)]["School ID"]
+#         # Match School ID with indexes
+#         closest_schools = pd.DataFrame()
+#         closest_schools["School ID"] = schools_by_distance[schools_by_distance.index.isin(index_list)]["School ID"]
 
-        # Merge the index and distances lists into a dataframe
-        distances = pd.DataFrame({"index":index_list, "y":distance_list})
-        distances = distances.set_index(list(distances)[0])
+#         # Merge the index and distances lists into a dataframe
+#         distances = pd.DataFrame({"index":index_list, "y":distance_list})
+#         distances = distances.set_index(list(distances)[0])
 
-        # Merge School ID with Distances by index
-        combined = closest_schools.join(distances)
+#         # Merge School ID with Distances by index
+#         combined = closest_schools.join(distances)
 
-        # Merge the original df with the combined distance/SchoolID df (essentially just adding School Name)
-        comparison_set = pd.merge(combined, all_schools, on="School ID", how="inner")
-        comparison_set = comparison_set.rename(columns = {"y": "Distance"})
+#         # Merge the original df with the combined distance/SchoolID df (essentially just adding School Name)
+#         comparison_set = pd.merge(combined, all_schools, on="School ID", how="inner")
+#         comparison_set = comparison_set.rename(columns = {"y": "Distance"})
     
-        # drop selected school (so it cannot be selected in the dropdown)
-        comparison_set = comparison_set.drop(comparison_set[comparison_set["School ID"] == int(school)].index)
+#         # drop selected school (so it cannot be selected in the dropdown)
+#         comparison_set = comparison_set.drop(comparison_set[comparison_set["School ID"] == int(school)].index)
 
-        # limit maximum dropdown to the [n] closest schools
-        num_schools_expanded = 20
+#         # limit maximum dropdown to the [n] closest schools
+#         num_schools_expanded = 20
 
-        comparison_set = comparison_set.sort_values(by=["Distance"], ascending=True)
+#         comparison_set = comparison_set.sort_values(by=["Distance"], ascending=True)
 
-        comparison_dropdown = comparison_set.head(num_schools_expanded)
+#         comparison_dropdown = comparison_set.head(num_schools_expanded)
 
-        comparison_dict = dict(zip(comparison_dropdown["School Name"], comparison_dropdown["School ID"]))
+#         comparison_dict = dict(zip(comparison_dropdown["School Name"], comparison_dropdown["School ID"]))
 
-        # final list will be displayed in order of increasing distance from selected school
-        comparison_list = dict(comparison_dict.items())
+#         # final list will be displayed in order of increasing distance from selected school
+#         comparison_list = dict(comparison_dict.items())
 
-        # Set default display selections to all schools in the list
-        default_options = [{"label":name,"value":id} for name, id in comparison_list.items()]
-        options = default_options
+#         # Set default display selections to all schools in the list
+#         default_options = [{"label":name,"value":id} for name, id in comparison_list.items()]
+#         options = default_options
 
-        # value for number of default display selections and maximum
-        # display selections (because of zero indexing, max should be
-        # 1 less than actual desired number)
-        default_num_to_display = 4
-        max_num_to_display = 7
+#         # value for number of default display selections and maximum
+#         # display selections (because of zero indexing, max should be
+#         # 1 less than actual desired number)
+#         default_num_to_display = 4
+#         max_num_to_display = 7
 
-        # used to display message if the number of selections exceeds the max
-        input_warning = None
+#         # used to display message if the number of selections exceeds the max
+#         input_warning = None
 
-        # if list is None or empty ([]), use the default options
-        if not comparison_schools:
-            comparison_schools = [d["value"] for d in options[:default_num_to_display]]
+#         # if list is None or empty ([]), use the default options
+#         if not comparison_schools:
+#             comparison_schools = [d["value"] for d in options[:default_num_to_display]]
 
-        else:
-            if len(comparison_schools) > max_num_to_display:
-                input_warning = html.P(
-                    id="input-warning",
-                    children="Limit reached (Maximum of " + str(max_num_to_display+1) + " schools).",
-                )
-                options = [
-                    {"label": option["label"], "value": option["value"], "disabled": True}
-                    for option in default_options
-                ]
+#         else:
+#             if len(comparison_schools) > max_num_to_display:
+#                 input_warning = html.P(
+#                     id="input-warning",
+#                     children="Limit reached (Maximum of " + str(max_num_to_display+1) + " schools).",
+#                 )
+#                 options = [
+#                     {"label": option["label"], "value": option["value"], "disabled": True}
+#                     for option in default_options
+#                 ]
         
-        return options, input_warning, comparison_schools
+#         return options, input_warning, comparison_schools
 
 @callback(
     Output("fig14a", "children"),
@@ -224,7 +224,7 @@ def set_dropdown_options(school, year, comparison_schools):
     Output("academic-analysis-main-container", "style"),
     Output("academic-analysis-empty-container", "style"),
     Output("academic-analysis-no-data", "children"),
-    Input("charter-dropdown", "value"),
+    Input("school-dropdown", "value"),
     Input("year-dropdown", "value"),
     [Input("comparison-dropdown", "value")],
 )

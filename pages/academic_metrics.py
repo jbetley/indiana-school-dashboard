@@ -22,7 +22,7 @@ from .calculate_metrics import calculate_k8_yearly_metrics, calculate_k8_compari
 from .calculations import conditional_fillna, get_excluded_years
 from .subnav import subnav_academic
 
-dash.register_page(__name__,  path = "/academic_metrics", order=5)
+dash.register_page(__name__,  path = "/academic_metrics", order=2)
 
 @callback(
     Output("table-container-11ab", "children"),
