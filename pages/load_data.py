@@ -146,86 +146,86 @@ def get_academic_dropdown_years():
     
     return years
 
-def get_financial_info_dropdown_years(school_id):
-    params = dict(id=school_id)
-    q = text('''
-        SELECT * 
-        FROM financial_data 
-        WHERE SchoolID = :id
-    ''')
+# def get_financial_info_dropdown_years(school_id):
+#     params = dict(id=school_id)
+#     q = text('''
+#         SELECT * 
+#         FROM financial_data 
+#         WHERE SchoolID = :id
+#     ''')
     
-    results = run_query(q, params)
+#     results = run_query(q, params)
 
-    # Processes financial df and returns a list of Year column names for
-    # each year for which ADM Average is greater than '0'
-    if len(results.columns) > 3:
+#     # Processes financial df and returns a list of Year column names for
+#     # each year for which ADM Average is greater than '0'
+#     if len(results.columns) > 3:
 
-        adm_index = results.index[results['Category'] == 'ADM Average'].values[0]
+#         adm_index = results.index[results['Category'] == 'ADM Average'].values[0]
 
-        results = results.filter(regex='^\d{4}') # adding '$' to the end of the regex will skip (Q#) years
+#         results = results.filter(regex='^\d{4}') # adding '$' to the end of the regex will skip (Q#) years
 
-        for col in results.columns:
-            results[col] = pd.to_numeric(results[col], errors='coerce')
+#         for col in results.columns:
+#             results[col] = pd.to_numeric(results[col], errors='coerce')
 
-        mask = results.iloc[adm_index] > 0
+#         mask = results.iloc[adm_index] > 0
 
-        results = results.loc[:, mask]
+#         results = results.loc[:, mask]
 
-        # trim excess info (Q#) if present
-        years = [x[:4] for x in results.columns.to_list()]
+#         # trim excess info (Q#) if present
+#         years = [x[:4] for x in results.columns.to_list()]
 
-    else:
-        years = []
+#     else:
+#         years = []
 
-    return years
+#     return years
 
-def get_financial_analysis_dropdown_years(school_id):
-    params = dict(id=school_id)
-    q = text('''
-        SELECT * 
-        FROM financial_data 
-        WHERE SchoolID = :id
-    ''')
+# def get_financial_analysis_dropdown_years(school_id):
+#     params = dict(id=school_id)
+#     q = text('''
+#         SELECT * 
+#         FROM financial_data 
+#         WHERE SchoolID = :id
+#     ''')
     
-    results = run_query(q, params)
+#     results = run_query(q, params)
 
-    # Processes financial df and returns a list of Year column names for
-    # each year for which ADM Average is greater than '0'
-    if len(results.columns) > 3:
+#     # Processes financial df and returns a list of Year column names for
+#     # each year for which ADM Average is greater than '0'
+#     if len(results.columns) > 3:
 
-        adm_index = results.index[results['Category'] == 'ADM Average'].values[0]
+#         adm_index = results.index[results['Category'] == 'ADM Average'].values[0]
 
-        # adding '$' to the end of the regex skips (Q#) years
-        results = results.filter(regex='^\d{4}$') 
+#         # adding '$' to the end of the regex skips (Q#) years
+#         results = results.filter(regex='^\d{4}$') 
 
-        for col in results.columns:
-            results[col] = pd.to_numeric(results[col], errors='coerce')
+#         for col in results.columns:
+#             results[col] = pd.to_numeric(results[col], errors='coerce')
 
-        mask = results.iloc[adm_index] > 0
+#         mask = results.iloc[adm_index] > 0
 
-        results = results.loc[:, mask]
+#         results = results.loc[:, mask]
 
-        # trim excess info (Q#) if present
-        years = results.columns.to_list()
+#         # trim excess info (Q#) if present
+#         years = results.columns.to_list()
 
-    else:
-        years = []
+#     else:
+#         years = []
 
-    return years
+#     return years
 
-def get_school_dropdown_list():
+# def get_school_dropdown_list():
 
-    q = text('''
-        SELECT SchoolName, SchoolID, SchoolType
-        FROM school_index '''
-    )
+#     q = text('''
+#         SELECT SchoolName, SchoolID, SchoolType
+#         FROM school_index '''
+#     )
 
-    with engine.connect() as conn:
-        schools = pd.read_sql_query(q, conn)
+#     with engine.connect() as conn:
+#         schools = pd.read_sql_query(q, conn)
 
-    schools = schools.astype(str)
+#     schools = schools.astype(str)
 
-    return schools
+#     return schools
 
 def get_school_corporation_list(selected_year):
 
@@ -234,7 +234,7 @@ def get_school_corporation_list(selected_year):
     q = text('''
         SELECT CorporationName, CorporationID
         FROM corporation_data_k8
-        WHERE corporation_data_k8.Year = :year
+        WHERE Year = :year
         ''')
 
     # with engine.connect() as conn:
@@ -245,25 +245,44 @@ def get_school_corporation_list(selected_year):
 
     return corps
 
-def get_public_school_list(*args):
-    keys = ['corporation']
+def get_public_school_list(corp_list):
+
+    key = ['corps']
+    params = dict(key=corp_list)
+
+    if isinstance(corp_list, str):
+        corp_list = [corp_list]
+
+    corp_string = ', '.join(str(int(v)) for v in corp_list)
+
+    query_string = '''
+        SELECT SchoolName, SchoolID, CorporationID
+            FROM academic_data_k8
+            WHERE CorporationID IN ({})'''.format(corp_string)
+
+    q = text(query_string)
+
+    school_list = run_query(q, params)
+
+    school_list = school_list.drop_duplicates('School ID')
+
+    return school_list
+
+
+def get_academic_data(*args):
+    keys = ['schools','year']
     params = dict(zip(keys, args))
 
-    # params = dict(corporation=corp)
-# https://stackoverflow.com/questions/73421810/python-sqlite3-how-to-getting-records-that-match-a-list-of-values-in-a-column-th
-    print(params)
-    q = text('''
+    school_str = ', '.join( [ str(int(v)) for v in params['schools'] ] )
+
+    query_string = '''
         SELECT *
-        FROM academic_data_k8
-        WHERE academic_data_k8.CorporationID = :corporation
-        ''')
+            FROM academic_data_k8
+            WHERE Year = :year AND SchoolID IN ({})'''.format( school_str )
 
-    # with engine.connect() as conn:
-    #     corps = pd.read_sql_query(q, conn)
-    schools = run_query(q, params)
-    schools = schools.astype(str)
+    q = text(query_string)
 
-    return schools
+    return run_query(q, params)
 
 def get_graduation_data():
     params = dict(id='')
@@ -280,46 +299,6 @@ def get_graduation_data():
 
     return run_query(q, params)
 
-def get_school_index(school_id):
-    params = dict(id=school_id)
-
-    q = text('''
-        SELECT *
-            FROM school_index
-            WHERE school_index.SchoolID = :id
-        ''')
-
-    return run_query(q, params)
-
-def get_info(school_id):
-    params = dict(id=school_id)
-
-    q = text('''
-        SELECT SchoolName, City, Principal, OpeningYear
-            FROM school_index
-            WHERE school_index.SchoolID = :id
-        ''')
-
-    return run_query(q, params)
-
-def get_financial_data(school_id):
-    params = dict(id=school_id)
-    q = text('''
-        SELECT * 
-        FROM financial_data 
-        WHERE SchoolID = :id
-    ''')
-    return run_query(q, params)
-
-def get_financial_ratios(corp_id):
-    params = dict(id=corp_id)
-    q = text('''
-        SELECT * 
-        FROM financial_ratios 
-        WHERE CorporationID = :id
-    ''')
-    return run_query(q, params)
-
 # for school corporations, SchoolID and CorpID are the same
 def get_demographic_data(*args):
     keys = ['id']
@@ -333,32 +312,20 @@ def get_demographic_data(*args):
     
     return run_query(q, params)
 
-def get_letter_grades(*args):
-    keys = ['id']
-    params = dict(zip(keys, args))
+# def get_k8_school_academic_data(*args):
+#     keys = ['id']
+#     params = dict(zip(keys, args))
 
-    q = text('''
-        SELECT demographic_data.Year, demographic_data.StateGrade, demographic_data.FederalRating
-            FROM demographic_data
-	        WHERE SchoolID = :id
-        ''')
+#     q = text('''
+#         SELECT *
+#             FROM academic_data_k8
+# 	        WHERE SchoolID = :id
+#         ''')
     
-    return run_query(q, params)
+#     results = run_query(q, params)
+#     results = results.sort_values(by = 'Year',ascending = False)
 
-def get_k8_school_academic_data(*args):
-    keys = ['id']
-    params = dict(zip(keys, args))
-
-    q = text('''
-        SELECT *
-            FROM academic_data_k8
-	        WHERE SchoolID = :id
-        ''')
-    
-    results = run_query(q, params)
-    results = results.sort_values(by = 'Year',ascending = False)
-
-    return results
+#     return results
 
 def get_k8_corporation_academic_data(*args):
     keys = ['id']
@@ -430,19 +397,4 @@ def get_school_coordinates(*args):
             WHERE Year = :year
         ''')
     
-    return run_query(q, params)
-
-def get_comparable_schools(*args):
-    keys = ['schools','year']
-    params = dict(zip(keys, args))
-
-    school_str = ', '.join( [ str(int(v)) for v in params['schools'] ] )
-
-    query_string = '''
-        SELECT *
-            FROM academic_data_k8
-            WHERE Year = :year AND SchoolID IN ({})'''.format( school_str )
-
-    q = text(query_string)
-
     return run_query(q, params)

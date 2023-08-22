@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 import itertools
 
-from .load_data import get_school_index, get_demographic_data, get_letter_grades
+from .load_data import get_demographic_data
 from .process_data import get_attendance_data
 from .calculations import calculate_year_over_year, set_academic_rating, conditional_fillna, calculate_difference, \
     get_excluded_years

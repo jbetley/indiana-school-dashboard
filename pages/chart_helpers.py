@@ -715,7 +715,7 @@ def make_growth_chart(data_me: pd.DataFrame, data_162: pd.DataFrame, label: str)
 
     return fig_layout
 
-def make_bar_chart(values: pd.DataFrame, category: str, school_name: str, label: str) -> list:
+def make_bar_chart(values: pd.DataFrame, category: str, label: str) -> list:
     """
     Creates a dash html.Div layout with a label and a simple bar chart (px.bar)
 
@@ -746,9 +746,9 @@ def make_bar_chart(values: pd.DataFrame, category: str, school_name: str, label:
         trace_color = {schools[i]: color[i] for i in range(len(schools))}
 
         # use specific color for selected school
-        for key, value in trace_color.items():
-            if key == school_name:
-                trace_color[key] = '#0a66c2'
+        # for key, value in trace_color.items():
+        #     if key == school_name:
+        #         trace_color[key] = '#0a66c2'
 
         # Uncomment this and below to display distance from selected school
         # data['Distance'] = pd.Series(['{:,.2f}'.format(val) for val in data['Distance']], index = data.index)
@@ -812,7 +812,7 @@ def make_bar_chart(values: pd.DataFrame, category: str, school_name: str, label:
 
     return fig_layout
 
-def make_group_bar_chart(values: pd.DataFrame, school_name: str, label: str) -> list:
+def make_group_bar_chart(values: pd.DataFrame, label: str) -> list:
     """
     Creates a layout containing a label and a grouped bar chart (px.bar)
 
@@ -832,12 +832,12 @@ def make_group_bar_chart(values: pd.DataFrame, school_name: str, label: str) -> 
 
     # find the index of the row containing the school name,
     # use this to filter data (next line) and also with
-    # data_table row_index to Bold the school's name.
-    school_name_idx = data.index[data['School Name'].str.contains(school_name)].tolist()[0]
+    # # data_table row_index to Bold the school's name.
+    # school_name_idx = data.index[data['School Name'].str.contains(school_name)].tolist()[0]
 
-    # Only want to display categories where the selected school has data - this
-    # drops all columns where the row at school_name_idx has a NaN value
-    data = data.loc[:, ~data.iloc[school_name_idx].isna()]
+    # # Only want to display categories where the selected school has data - this
+    # # drops all columns where the row at school_name_idx has a NaN value
+    # data = data.loc[:, ~data.iloc[school_name_idx].isna()]
 
     # reset index
     data.reset_index(drop=True,inplace=True)
@@ -853,6 +853,9 @@ def make_group_bar_chart(values: pd.DataFrame, school_name: str, label: str) -> 
 
     for col in cols:
         data[col]=pd.to_numeric(data[col], errors='coerce')
+
+    # drop categories where there is no data for any school
+    data = data.dropna(how='all',axis=1)
 
     categories = data.columns.tolist()
     categories.remove('School Name')
@@ -877,9 +880,9 @@ def make_group_bar_chart(values: pd.DataFrame, school_name: str, label: str) -> 
     trace_color = {schools[i]: color[i] for i in range(len(schools))}
 
     # replace color for selected school
-    for key, value in trace_color.items():
-        if key == school_name:
-            trace_color[key] = '#0a66c2'
+    # for key, value in trace_color.items():
+    #     if key == school_name:
+    #         trace_color[key] = '#0a66c2'
 
     fig = px.bar(
         data_frame = data_set,

@@ -1551,7 +1551,7 @@ def set_table_layout(table1: list, table2: list, cols: pd.Series) -> list:
 
     return table_layout
 
-def create_comparison_table(data: pd.DataFrame, school_name: str, label: str) -> list:
+def create_comparison_table(data: pd.DataFrame, label: str) -> list:
     """
     Takes a dataframe that is a column of schools and one or more columns
     of data, school name, and table label. Uses the school name to find
@@ -1559,7 +1559,6 @@ def create_comparison_table(data: pd.DataFrame, school_name: str, label: str) ->
 
     Args:
         data (pd.DataFrame): dataframe of academic data
-        school_name (str): 
         label (str): title of table
 
     Returns:
@@ -1567,10 +1566,10 @@ def create_comparison_table(data: pd.DataFrame, school_name: str, label: str) ->
     """
 
     # find the index of the row containing the school name
-    school_name_idx = data.index[data["School Name"].str.contains(school_name)].tolist()[0]
+    # school_name_idx = data.index[data["School Name"].str.contains(school_name)].tolist()[0]
 
-    # drop all columns where the row at school_name_idx has a NaN value
-    data = data.loc[:, ~data.iloc[school_name_idx].isna()]
+    # # drop all columns where the row at school_name_idx has a NaN value
+    # data = data.loc[:, ~data.iloc[school_name_idx].isna()]
 
     # sort dataframe by the "first" proficiency column and reset index
     data = data.sort_values(data.columns[1], ascending=False)
@@ -1578,7 +1577,7 @@ def create_comparison_table(data: pd.DataFrame, school_name: str, label: str) ->
     data = data.reset_index(drop=True)
 
     # need to find the index again because the sort has jumbled things up
-    school_name_idx = data.index[data["School Name"].str.contains(school_name)].tolist()[0]
+    # school_name_idx = data.index[data["School Name"].str.contains(school_name)].tolist()[0]
 
     # hide the header "School Name"
     data = data.rename(columns = {"School Name" : ""})
@@ -1606,13 +1605,13 @@ def create_comparison_table(data: pd.DataFrame, school_name: str, label: str) ->
                 "backgroundColor": "#eeeeee",
                 "border": "none",
             },
-            {
-                "if": {
-                    "row_index": school_name_idx
-                },
-                "fontWeight": "bold",
-                "color": "#b86949",
-            },
+            # {
+            #     "if": {
+            #         "row_index": school_name_idx
+            #     },
+            #     "fontWeight": "bold",
+            #     "color": "#b86949",
+            # },
             {
                 "if": {
                     "state": "selected"
